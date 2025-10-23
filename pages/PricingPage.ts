@@ -109,9 +109,19 @@ export class PricingPage {
         const pdfUrl = page.url();
         console.log(`📥 Trying to download PDF from: ${pdfUrl}`);
 
-        // 1️⃣ Direct GET request
+        const commonHeaders: Record<string, string> = {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'application/pdf,application/octet-stream',
+        };
+
+        // 1️⃣ Direct GET
         try {
-            const response = await page.request.get(pdfUrl, { timeout: CONSTANTS.TIMEOUTS.long });
+            const response = await page.request.get(pdfUrl, {
+                timeout: CONSTANTS.TIMEOUTS.long,
+                headers: commonHeaders,
+            });
             if (response.ok()) {
                 const buffer = await response.body();
                 console.log(`✅ Direct GET succeeded (${buffer.length} bytes)`);
@@ -127,12 +137,15 @@ export class PricingPage {
             const cookies = await page.context().cookies();
             const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
             const headers: Record<string, string> = {
+                ...commonHeaders,
                 Referer: CONSTANTS.BASE_URL,
-                Accept: 'application/pdf,application/octet-stream'
             };
-            if (cookieHeader) headers.Cookie = cookieHeader;
+            if (cookieHeader) headers['Cookie'] = cookieHeader;
 
-            const response = await page.request.get(pdfUrl, { timeout: CONSTANTS.TIMEOUTS.long, headers });
+            const response = await page.request.get(pdfUrl, {
+                timeout: CONSTANTS.TIMEOUTS.long,
+                headers,
+            });
             if (response.ok()) {
                 const buffer = await response.body();
                 console.log(`✅ Header-based GET succeeded (${buffer.length} bytes)`);
@@ -143,24 +156,27 @@ export class PricingPage {
             console.warn('Header GET threw error:', err);
         }
 
-        // 3️⃣ Fallback — in-page fetch (uses browser session)
+        // 3️⃣ Fallback — in-page fetch
         try {
             console.log('🔁 Trying in-page fetch fallback...');
-            const result = await page.evaluate(async (url) => {
-                try {
-                    const res = await fetch(url, {
-                        method: 'GET',
-                        credentials: 'include',
-                        headers: { Accept: 'application/pdf' }
-                    });
-                    if (!res.ok) return { ok: false, status: res.status };
-                    const ab = await res.arrayBuffer();
-                    const bytes = Array.from(new Uint8Array(ab));
-                    return { ok: true, status: res.status, bytes };
-                } catch (e) {
-                    return { ok: false, status: 0 };
-                }
-            }, pdfUrl);
+            const result = await page.evaluate(
+                async ({ url, headers }: { url: string; headers: Record<string, string> }) => {
+                    try {
+                        const res = await fetch(url, {
+                            method: 'GET',
+                            credentials: 'include',
+                            headers,
+                        });
+                        if (!res.ok) return { ok: false, status: res.status };
+                        const ab = await res.arrayBuffer();
+                        const bytes = Array.from(new Uint8Array(ab));
+                        return { ok: true, status: res.status, bytes };
+                    } catch {
+                        return { ok: false, status: 0 };
+                    }
+                },
+                { url: pdfUrl, headers: commonHeaders }
+            );
 
             if (result.ok && Array.isArray(result.bytes)) {
                 const buffer = Buffer.from(result.bytes);
@@ -173,7 +189,7 @@ export class PricingPage {
         }
 
         console.warn(`⚠️ All PDF fetch attempts failed (${pdfUrl}). Skipping verification.`);
-        return ''; // gracefully skip instead of throwing
+        return '';
     }
 
 
