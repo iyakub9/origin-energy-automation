@@ -1,0 +1,17 @@
+{
+  "name": "origin-energy-automation",
+  "version": "1.0.0",
+  "description": "Playwright UI automation for Origin Energy pricing page",
+  "scripts": {
+    "test": "npx playwright test --reporter=html"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^24.9.1",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^3.11.174"
+  }
+}
